@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "time.h": "c",
+        "struct_itimerspec.h": "c"
+    }
+}

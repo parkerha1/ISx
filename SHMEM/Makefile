@@ -2,9 +2,12 @@ CC = oshcc
 LD = $(CC)
 DEBUGFLAGS = -g -p -O0 -DDEBUG
 OPTFLAGS = -O3 -DNDEBUG -mavx
+# CFLAGS += -Wall -Wextra -std=c99 -I/usr/include/bits/types -I/usr/lib64/gcc/x86_64-suse-linux/12/include -I/global/homes/p/parkerha/SOS/include -I/usr/include #$(OPTFLAGS)
 CFLAGS += -Wall -Wextra -std=c99 #$(OPTFLAGS)
+CFLAGS+=`PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --cflags sandia-openshmem`
+LDFLAGS+=`PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --libs sandia-openshmem`
 LDLIBS += -lrt -lm
-LDFLAGS += 
+LDFLAGS += -L/global/common/software/nersc/pe/gpu/gnu/openmpi/5.0.0/lib -lmpi
 ### 
 # If you change these values, you must also change them in params.h
 STRONG = 1

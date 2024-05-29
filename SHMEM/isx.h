@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
-#include "timer.h"
+// #include "timer.h"
 #include "pcg_basic.h"
 /*
  * Ensures the command line parameters and values specified in params.h
@@ -141,7 +141,7 @@ static void report_summary_stats(void);
 static void print_timer_names(FILE * fp);
 static void print_run_info(FILE * fp);
 static void print_timer_values(FILE * fp);
-static double * gather_rank_times(_timer_t * const timer);
-static unsigned int * gather_rank_counts(_timer_t * const timer);
+// static double * gather_rank_times(_timer_t * const timer);
+// static unsigned int * gather_rank_counts(_timer_t * const timer);
 
 #endif

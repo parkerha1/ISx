@@ -41,7 +41,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <stdint.h>
 #include "params.h"
 #include "isx.h"
-#include "timer.h"
+//#include "timer.h"
 #include "pcg_basic.h"
 
 #define ROOT_PE 0
@@ -91,7 +91,7 @@ int main(const int argc,  char ** argv)
 
   int err = bucket_sort();
 
-  log_times(log_file);
+  //log_times(log_file);
 
   shmem_finalize();
   return err;
@@ -198,9 +198,11 @@ static char * parse_params(const int argc, char ** argv)
  */
 static int bucket_sort(void)
 {
+  printf("Entering bucket sort\n");
+  fflush(stdout);
   int err = 0;
 
-  init_timers(NUM_ITERATIONS);
+  //init_timers(NUM_ITERATIONS);
 
 #ifdef PERMUTE
   create_permutation_array();
@@ -208,13 +210,16 @@ static int bucket_sort(void)
 
   for(uint64_t i = 0; i < (NUM_ITERATIONS + BURN_IN); ++i)
   {
-
+    printf("Entering inner loop\n");
+    fflush(stdout);
     // Reset timers after burn in
-    if(i == BURN_IN){ init_timers(NUM_ITERATIONS); }
+    if(i == BURN_IN){ 
+      //init_timers(NUM_ITERATIONS); 
+    }
 
     shmem_barrier_all();
 
-    timer_start(&timers[TIMER_TOTAL]);
+    //timer_start(&timers[TIMER_TOTAL]);
 
     KEY_TYPE * my_keys = make_input();
 
@@ -225,7 +230,8 @@ static int bucket_sort(void)
                                                                    &send_offsets);
 
     KEY_TYPE * my_local_bucketed_keys =  bucketize_local_keys(my_keys, local_bucket_offsets);
-
+    printf("Entering exchange keys\n");
+    fflush(stdout);
     KEY_TYPE * my_bucket_keys = exchange_keys(send_offsets,
                                               local_bucket_sizes,
                                               my_local_bucketed_keys);
@@ -236,7 +242,7 @@ static int bucket_sort(void)
 
     shmem_barrier_all();
 
-    timer_stop(&timers[TIMER_TOTAL]);
+    //timer_stop(&timers[TIMER_TOTAL]);
 
     // Only the last iteration is verified
     if(i == NUM_ITERATIONS) {
@@ -272,7 +278,7 @@ static int bucket_sort(void)
  */
 static KEY_TYPE * make_input(void)
 {
-  timer_start(&timers[TIMER_INPUT]);
+  //timer_start(&timers[TIMER_INPUT]);
 
   KEY_TYPE * restrict const my_keys = malloc(NUM_KEYS_PER_PE * sizeof(KEY_TYPE));
 
@@ -282,7 +288,7 @@ static KEY_TYPE * make_input(void)
     my_keys[i] = pcg32_boundedrand_r(&rng, MAX_KEY_VAL);
   }
 
-  timer_stop(&timers[TIMER_INPUT]);
+  //timer_stop(&timers[TIMER_INPUT]);
 
 #ifdef DEBUG
   wait_my_turn();
@@ -310,7 +316,7 @@ static inline int * count_local_bucket_sizes(KEY_TYPE const * restrict const my_
 {
   int * restrict const local_bucket_sizes = malloc(NUM_BUCKETS * sizeof(int));
 
-  timer_start(&timers[TIMER_BCOUNT]);
+  //timer_start(&timers[TIMER_BCOUNT]);
 
   init_array(local_bucket_sizes, NUM_BUCKETS);
 
@@ -319,7 +325,7 @@ static inline int * count_local_bucket_sizes(KEY_TYPE const * restrict const my_
     local_bucket_sizes[bucket_index]++;
   }
 
-  timer_stop(&timers[TIMER_BCOUNT]);
+  //timer_stop(&timers[TIMER_BCOUNT]);
 
 #ifdef DEBUG
   wait_my_turn();
@@ -351,7 +357,7 @@ static inline int * compute_local_bucket_offsets(int const * restrict const loca
 {
   int * restrict const local_bucket_offsets = malloc(NUM_BUCKETS * sizeof(int));
 
-  timer_start(&timers[TIMER_BOFFSET]);
+  //timer_start(&timers[TIMER_BOFFSET]);
 
   (*send_offsets) = malloc(NUM_BUCKETS * sizeof(int));
 
@@ -363,7 +369,7 @@ static inline int * compute_local_bucket_offsets(int const * restrict const loca
     local_bucket_offsets[i] = temp;
     (*send_offsets)[i] = temp;
   }
-  timer_stop(&timers[TIMER_BOFFSET]);
+  //timer_stop(&timers[TIMER_BOFFSET]);
 
 #ifdef DEBUG
   wait_my_turn();
@@ -391,7 +397,7 @@ static inline KEY_TYPE * bucketize_local_keys(KEY_TYPE const * restrict const my
 {
   KEY_TYPE * restrict const my_local_bucketed_keys = malloc(NUM_KEYS_PER_PE * sizeof(KEY_TYPE));
 
-  timer_start(&timers[TIMER_BUCKETIZE]);
+  //timer_start(&timers[TIMER_BUCKETIZE]);
 
   for(uint64_t i = 0; i < NUM_KEYS_PER_PE; ++i){
     const KEY_TYPE key = my_keys[i];
@@ -403,7 +409,7 @@ static inline KEY_TYPE * bucketize_local_keys(KEY_TYPE const * restrict const my
     my_local_bucketed_keys[index] = key;
   }
 
-  timer_stop(&timers[TIMER_BUCKETIZE]);
+  //timer_stop(&timers[TIMER_BUCKETIZE]);
 
 #ifdef DEBUG
   wait_my_turn();
@@ -430,7 +436,7 @@ static inline KEY_TYPE * exchange_keys(int const * restrict const send_offsets,
                                        int const * restrict const local_bucket_sizes,
                                        KEY_TYPE const * restrict const my_local_bucketed_keys)
 {
-  timer_start(&timers[TIMER_ATA_KEYS]);
+  //timer_start(&timers[TIMER_ATA_KEYS]);
 
   const int my_rank = shmem_my_pe();
   unsigned int total_keys_sent = 0;
@@ -477,8 +483,8 @@ static inline KEY_TYPE * exchange_keys(int const * restrict const send_offsets,
   shmem_barrier_all();
 #endif
 
-  timer_stop(&timers[TIMER_ATA_KEYS]);
-  timer_count(&timers[TIMER_ATA_KEYS], total_keys_sent);
+  // timer_stop(&timers[TIMER_ATA_KEYS]);
+  //timer_count(&timers[TIMER_ATA_KEYS], total_keys_sent);
 
 #ifdef DEBUG
   wait_my_turn();
@@ -510,7 +516,7 @@ static inline int * count_local_keys(KEY_TYPE const * restrict const my_bucket_k
   int * restrict const my_local_key_counts = malloc(BUCKET_WIDTH * sizeof(int));
   memset(my_local_key_counts, 0, BUCKET_WIDTH * sizeof(int));
 
-  timer_start(&timers[TIMER_SORT]);
+  //timer_start(&timers[TIMER_SORT]);
 
   const int my_rank = shmem_my_pe();
   const int my_min_key = my_rank * BUCKET_WIDTH;
@@ -524,7 +530,7 @@ static inline int * count_local_keys(KEY_TYPE const * restrict const my_bucket_k
 
     my_local_key_counts[key_index]++;
   }
-  timer_stop(&timers[TIMER_SORT]);
+  //timer_stop(&timers[TIMER_SORT]);
 
 #ifdef DEBUG
   wait_my_turn();
@@ -595,6 +601,9 @@ static int verify_results(int const * restrict const my_local_key_counts,
     }
   }
 
+  if (error == 0) {
+    printf("Verification successful\n");
+  }
   return error;
 }
 
@@ -632,21 +641,21 @@ static void log_times(char * log_file)
         exit(1);
       }
 
-      print_timer_values(fp);
+      //print_timer_values(fp);
       fclose(fp);
     }
     shmem_barrier_all();
   }
 
-  for(uint64_t t = 0; t < TIMER_NTIMERS; ++t){
-    timers[t].pe_average_times = gather_rank_times(&timers[t]);
-    // No need gather the average counts since we are not currently reporting them
-    //timers[t].pe_average_counts = gather_rank_counts(&timers[t]);
-  }
+  // for(uint64_t t = 0; t < TIMER_NTIMERS; ++t){
+  //   timers[t].pe_average_times = gather_rank_times(&timers[t]);
+  //   // No need gather the average counts since we are not currently reporting them
+  //   //timers[t].pe_average_counts = gather_rank_counts(&timers[t]);
+  // }
 
   if(shmem_my_pe() == ROOT_PE)
   {
-    report_summary_stats();
+    //report_summary_stats();
   }
 }
 
@@ -660,21 +669,21 @@ static void report_summary_stats(void)
   // the entire collection. However, this would no longer be true if the PEs had
   // a different number of iterations.
 
-  if(timers[TIMER_TOTAL].seconds_iter > 0) {
-    double temp = 0.0;
-    for(uint64_t i = 0; i < NUM_PES; ++i){
-      temp += timers[TIMER_TOTAL].pe_average_times[i];
-    }
-    printf("Average total time (per PE): %f seconds\n", temp/NUM_PES);
-  }
+  // if(timers[TIMER_TOTAL].seconds_iter > 0) {
+  //   double temp = 0.0;
+  //   for(uint64_t i = 0; i < NUM_PES; ++i){
+  //     temp += timers[TIMER_TOTAL].pe_average_times[i];
+  //   }
+  //   printf("Average total time (per PE): %f seconds\n", temp/NUM_PES);
+  // }
 
-  if(timers[TIMER_ATA_KEYS].seconds_iter >0) {
-    double temp = 0.0;
-    for(uint64_t i = 0; i < NUM_PES; ++i){
-      temp += timers[TIMER_ATA_KEYS].pe_average_times[i];
-    }
-    printf("Average all2all time (per PE): %f seconds\n", temp/NUM_PES);
-  }
+  // if(timers[TIMER_ATA_KEYS].seconds_iter >0) {
+  //   double temp = 0.0;
+  //   for(uint64_t i = 0; i < NUM_PES; ++i){
+  //     temp += timers[TIMER_ATA_KEYS].pe_average_times[i];
+  //   }
+  //   printf("Average all2all time (per PE): %f seconds\n", temp/NUM_PES);
+  // }
 }
 
 /*
@@ -682,14 +691,14 @@ static void report_summary_stats(void)
  */
 static void print_timer_names(FILE * fp)
 {
-  for(uint64_t i = 0; i < TIMER_NTIMERS; ++i){
-    if(timers[i].seconds_iter > 0){
-      fprintf(fp, "%s (sec)\t", timer_names[i]);
-    }
-    if(timers[i].count_iter > 0){
-      fprintf(fp, "%s_COUNTS\t", timer_names[i]);
-    }
-  }
+  // for(uint64_t i = 0; i < TIMER_NTIMERS; ++i){
+  //   if(timers[i].seconds_iter > 0){
+  //     fprintf(fp, "%s (sec)\t", timer_names[i]);
+  //   }
+  //   if(timers[i].count_iter > 0){
+  //     fprintf(fp, "%s_COUNTS\t", timer_names[i]);
+  //   }
+  // }
   fprintf(fp,"\n");
 }
 
@@ -742,94 +751,94 @@ static void print_run_info(FILE * fp)
  */
 static void print_timer_values(FILE * fp)
 {
-  for(uint64_t i = 0; i < NUM_ITERATIONS; ++i) {
-    for(int t = 0; t < TIMER_NTIMERS; ++t){
-      if(timers[t].seconds_iter > 0){
-        fprintf(fp,"%f\t", timers[t].seconds[i]);
-      }
-      if(timers[t].count_iter > 0){
-        fprintf(fp,"%u\t", timers[t].count[i]);
-      }
-    }
-    fprintf(fp,"\n");
-  }
+  // for(uint64_t i = 0; i < NUM_ITERATIONS; ++i) {
+  //   for(int t = 0; t < TIMER_NTIMERS; ++t){
+  //     if(timers[t].seconds_iter > 0){
+  //       fprintf(fp,"%f\t", timers[t].seconds[i]);
+  //     }
+  //     if(timers[t].count_iter > 0){
+  //       fprintf(fp,"%u\t", timers[t].count[i]);
+  //     }
+  //   }
+  //   fprintf(fp,"\n");
+  // }
 }
 
 /*
  * Aggregates the per PE timing information
  */
-static double * gather_rank_times(_timer_t * const timer)
-{
-  if(timer->seconds_iter > 0) {
+// static double * gather_rank_times(_timer_t * const timer)
+// {
+//   if(timer->seconds_iter > 0) {
 
-    assert(timer->seconds_iter == timer->num_iters);
+//     assert(timer->seconds_iter == timer->num_iters);
 
-    shmem_barrier_all();
+//     shmem_barrier_all();
 
-#ifdef OPENSHMEM_COMPLIANT
-    double * my_average_time = shmem_malloc(sizeof(double));
-#else
-    double * my_average_time = shmalloc(sizeof(double));
-#endif
-    double temp = 0.0;
-    for(unsigned int i = 0; i < timer->seconds_iter; i++) {
-      temp += timer->seconds[i];
-    }
+// #ifdef OPENSHMEM_COMPLIANT
+//     double * my_average_time = shmem_malloc(sizeof(double));
+// #else
+//     double * my_average_time = shmalloc(sizeof(double));
+// #endif
+//     double temp = 0.0;
+//     for(unsigned int i = 0; i < timer->seconds_iter; i++) {
+//       temp += timer->seconds[i];
+//     }
 
-    *my_average_time = temp/(timer->seconds_iter);
+//     *my_average_time = temp/(timer->seconds_iter);
 
-    double * pe_average_times = shmem_malloc(NUM_PES * sizeof(double));
+//     double * pe_average_times = shmem_malloc(NUM_PES * sizeof(double));
 
-    shmem_barrier_all();
-    shmem_double_fcollect(SHMEM_TEAM_WORLD, pe_average_times, my_average_time, 1);
-    shmem_barrier_all();
+//     shmem_barrier_all();
+//     shmem_double_fcollect(SHMEM_TEAM_WORLD, pe_average_times, my_average_time, 1);
+//     shmem_barrier_all();
 
-    shmem_free(my_average_time);
+//     shmem_free(my_average_time);
 
-    return pe_average_times;
-  }
+//     return pe_average_times;
+//   }
 
-  else{
-    return NULL;
-  }
-}
+//   else{
+//     return NULL;
+//   }
+// }
 
-/*
- * Aggregates the per PE timing 'count' information
- */
-static unsigned int * gather_rank_counts(_timer_t * const timer)
-{
-  if(timer->count_iter > 0) {
+// /*
+//  * Aggregates the per PE timing 'count' information
+//  */
+// static unsigned int * gather_rank_counts(_timer_t * const timer)
+// {
+//   if(timer->count_iter > 0) {
 
-    shmem_barrier_all();
+//     shmem_barrier_all();
 
-#ifdef OPENSHMEM_COMPLIANT
-    unsigned int * my_average_count = shmem_malloc(sizeof(unsigned int));
-#else
-    unsigned int * my_average_count = shmalloc(sizeof(unsigned int));
-#endif
-    unsigned int temp = 0;
-    for(unsigned int i = 0; i < timer->count_iter; i++) {
-      temp += timer->count[i];
-    }
+// #ifdef OPENSHMEM_COMPLIANT
+//     unsigned int * my_average_count = shmem_malloc(sizeof(unsigned int));
+// #else
+//     unsigned int * my_average_count = shmalloc(sizeof(unsigned int));
+// #endif
+//     unsigned int temp = 0;
+//     for(unsigned int i = 0; i < timer->count_iter; i++) {
+//       temp += timer->count[i];
+//     }
 
-    *my_average_count = temp/(timer->count_iter);
+//     *my_average_count = temp/(timer->count_iter);
 
-    unsigned int * pe_average_counts = shmem_malloc(NUM_PES * sizeof(unsigned int));
+//     unsigned int * pe_average_counts = shmem_malloc(NUM_PES * sizeof(unsigned int));
 
-    shmem_barrier_all();
-    shmem_uint_fcollect(SHMEM_TEAM_WORLD, pe_average_counts, my_average_count, 1);
-    shmem_barrier_all();
+//     shmem_barrier_all();
+//     shmem_uint_fcollect(SHMEM_TEAM_WORLD, pe_average_counts, my_average_count, 1);
+//     shmem_barrier_all();
 
-    shmem_free(my_average_count);
+//     shmem_free(my_average_count);
 
-    return pe_average_counts;
-  }
+//     return pe_average_counts;
+//   }
 
-  else{
-    return NULL;
-  }
-}
+//   else{
+//     return NULL;
+//   }
+// }
 
 /*
  * Seeds each rank based on the rank number and time

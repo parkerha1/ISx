@@ -1,0 +1,183 @@
+CC = oshcc
+LD = $(CC)
+DEBUGFLAGS = -g -p -O0 -DDEBUG
+OPTFLAGS = -O3 -DNDEBUG -mavx
+CFLAGS += -Wall -Wextra -std=c99 -I/usr/include/bits/types -I/usr/lib64/gcc/x86_64-suse-linux/12/include -I/global/homes/p/parkerha/SOS/include -I/usr/include #$(OPTFLAGS)
+LDLIBS += -lrt -lm
+LDFLAGS += 
+### 
+# If you change these values, you must also change them in params.h
+STRONG = 1
+WEAK = 2
+WEAKISO = 3
+###
+
+.PHONY: all clean debug
+
+SRCS := $(wildcard *.c)
+OBJDIR := obj
+BINDIR := bin
+STRONG_EXE = isx.strong
+WEAK_EXE = isx.weak 
+WEAKISO_EXE = isx.weak_iso
+STRONG_OBJS := $(SRCS:.c=.o_s)
+STRONG_OBJS := $(addprefix $(OBJDIR)/,$(STRONG_OBJS))
+WEAK_OBJS := $(SRCS:.c=.o_w)
+WEAK_OBJS := $(addprefix $(OBJDIR)/,$(WEAK_OBJS))
+WEAKISO_OBJS := $(SRCS:.c=.o_wi)
+WEAKISO_OBJS := $(addprefix $(OBJDIR)/,$(WEAKISO_OBJS))
+
+all: $(STRONG_EXE) $(WEAK_EXE) $(WEAKISO_EXE)
+
+optimized: CFLAGS += $(OPTFLAGS)
+optimized: all
+
+debug: CFLAGS += $(DEBUGFLAGS)
+debug: all
+
+$(STRONG_EXE):$(STRONG_OBJS)
+	@mkdir -p $(BINDIR)
+	$(LD) $(STRONG_OBJS) -o $(BINDIR)/$(STRONG_EXE) $(LDLIBS) $(LDFLAGS)
+
+$(WEAK_EXE):$(WEAK_OBJS)
+	@mkdir -p $(BINDIR)
+	$(LD) $(WEAK_OBJS) -o $(BINDIR)/$(WEAK_EXE) $(LDLIBS) $(LDFLAGS)
+
+$(WEAKISO_EXE):$(WEAKISO_OBJS)
+	@mkdir -p $(BINDIR)
+	$(LD) $(WEAKISO_OBJS) -o $(BINDIR)/$(WEAKISO_EXE) $(LDLIBS) $(LDFLAGS)
+
+$(OBJDIR)/%.o_s : %.c
+	@mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -D SCALING_OPTION=$(STRONG) -c $< -o $@
+
+$(OBJDIR)/%.o_w: %.c
+	@mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -D SCALING_OPTION=$(WEAK) -c $< -o $@
+
+$(OBJDIR)/%.o_wi: %.c
+	@mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -D SCALING_OPTION=$(WEAKISO) -c $< -o $@
+
+clean:
+	@- $(RM) $(BINDIR)/$(STRONG_EXE)
+	@- $(RM) $(STRONG_OBJS)
+	@- $(RM) $(BINDIR)/$(WEAK_EXE)
+	@- $(RM) $(WEAK_OBJS)
+	@- $(RM) $(BINDIR)/$(WEAKISO_EXE)
+	@- $(RM) $(WEAKISO_OBJS)
+
+depend:
+	    makedepend -- $(CFLAGS) -- $(SRCS)
+
+# Don't place anything below this line, since
+# # the make depend program will overwrite it
+# # DO NOT DELETE THIS LINE -- make depend depends on it.
+# DO NOT DELETE
+
+timer.o: timer.h /usr/include/time.h /usr/include/features.h
+timer.o: /usr/include/stdc-predef.h /usr/include/sys/cdefs.h
+timer.o: /usr/include/bits/wordsize.h /usr/include/bits/long-double.h
+timer.o: /usr/include/gnu/stubs.h
+timer.o: /usr/lib64/gcc/x86_64-suse-linux/12/include/stddef.h
+timer.o: /usr/include/bits/time.h /usr/include/bits/types.h
+timer.o: /usr/include/bits/timesize.h /usr/include/bits/typesizes.h
+timer.o: /usr/include/bits/time64.h /usr/include/bits/timex.h
+timer.o: /usr/include/bits/types/struct_timeval.h
+timer.o: /usr/include/bits/types/clock_t.h /usr/include/bits/types/time_t.h
+timer.o: /usr/include/bits/types/struct_tm.h
+timer.o: /usr/include/bits/types/struct_timespec.h /usr/include/bits/endian.h
+timer.o: /usr/include/bits/endianness.h /usr/include/bits/types/clockid_t.h
+timer.o: /usr/include/bits/types/timer_t.h
+timer.o: /usr/include/bits/types/struct_itimerspec.h
+timer.o: /usr/include/bits/types/locale_t.h
+timer.o: /usr/include/bits/types/__locale_t.h
+timer.o: /usr/lib64/gcc/x86_64-suse-linux/12/include/stdbool.h
+timer.o: /usr/include/stdio.h /usr/include/bits/libc-header-start.h
+timer.o: /usr/lib64/gcc/x86_64-suse-linux/12/include/stdarg.h
+timer.o: /usr/include/bits/types/__fpos_t.h
+timer.o: /usr/include/bits/types/__mbstate_t.h
+timer.o: /usr/include/bits/types/__fpos64_t.h
+timer.o: /usr/include/bits/types/__FILE.h /usr/include/bits/types/FILE.h
+timer.o: /usr/include/bits/types/struct_FILE.h
+timer.o: /usr/include/bits/types/cookie_io_functions_t.h
+timer.o: /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h
+timer.o: /usr/include/stdlib.h /usr/include/bits/waitflags.h
+timer.o: /usr/include/bits/waitstatus.h /usr/include/bits/floatn.h
+timer.o: /usr/include/bits/floatn-common.h /usr/include/sys/types.h
+timer.o: /usr/include/bits/stdint-intn.h /usr/include/endian.h
+timer.o: /usr/include/bits/byteswap.h /usr/include/bits/uintn-identity.h
+timer.o: /usr/include/sys/select.h /usr/include/bits/select.h
+timer.o: /usr/include/bits/types/sigset_t.h
+timer.o: /usr/include/bits/types/__sigset_t.h
+timer.o: /usr/include/bits/pthreadtypes.h
+timer.o: /usr/include/bits/thread-shared-types.h
+timer.o: /usr/include/bits/pthreadtypes-arch.h
+timer.o: /usr/include/bits/struct_mutex.h /usr/include/bits/struct_rwlock.h
+timer.o: /usr/include/alloca.h /usr/include/bits/stdlib-float.h
+pcg_basic.o: pcg_basic.h /usr/include/inttypes.h /usr/include/features.h
+pcg_basic.o: /usr/include/stdc-predef.h /usr/include/sys/cdefs.h
+pcg_basic.o: /usr/include/bits/wordsize.h /usr/include/bits/long-double.h
+pcg_basic.o: /usr/include/gnu/stubs.h /usr/include/stdint.h
+pcg_basic.o: /usr/include/bits/libc-header-start.h /usr/include/bits/types.h
+pcg_basic.o: /usr/include/bits/timesize.h /usr/include/bits/typesizes.h
+pcg_basic.o: /usr/include/bits/time64.h /usr/include/bits/wchar.h
+pcg_basic.o: /usr/include/bits/stdint-intn.h /usr/include/bits/stdint-uintn.h
+pcg_basic.o: /usr/lib64/gcc/x86_64-suse-linux/12/include/stddef.h
+isx.o: /global/homes/p/parkerha/SOS/include/shmem.h
+isx.o: /usr/lib64/gcc/x86_64-suse-linux/12/include/stddef.h
+isx.o: /usr/include/stdint.h /usr/include/bits/libc-header-start.h
+isx.o: /usr/include/features.h /usr/include/stdc-predef.h
+isx.o: /usr/include/sys/cdefs.h /usr/include/bits/wordsize.h
+isx.o: /usr/include/bits/long-double.h /usr/include/gnu/stubs.h
+isx.o: /usr/include/bits/types.h /usr/include/bits/timesize.h
+isx.o: /usr/include/bits/typesizes.h /usr/include/bits/time64.h
+isx.o: /usr/include/bits/wchar.h /usr/include/bits/stdint-intn.h
+isx.o: /usr/include/bits/stdint-uintn.h
+isx.o: /global/homes/p/parkerha/SOS/include/shmem-def.h /usr/include/assert.h
+isx.o: /usr/include/stdlib.h /usr/include/bits/waitflags.h
+isx.o: /usr/include/bits/waitstatus.h /usr/include/bits/floatn.h
+isx.o: /usr/include/bits/floatn-common.h /usr/include/bits/types/locale_t.h
+isx.o: /usr/include/bits/types/__locale_t.h /usr/include/sys/types.h
+isx.o: /usr/include/bits/types/clock_t.h /usr/include/bits/types/clockid_t.h
+isx.o: /usr/include/bits/types/time_t.h /usr/include/bits/types/timer_t.h
+isx.o: /usr/include/endian.h /usr/include/bits/endian.h
+isx.o: /usr/include/bits/endianness.h /usr/include/bits/byteswap.h
+isx.o: /usr/include/bits/uintn-identity.h /usr/include/sys/select.h
+isx.o: /usr/include/bits/select.h /usr/include/bits/types/sigset_t.h
+isx.o: /usr/include/bits/types/__sigset_t.h
+isx.o: /usr/include/bits/types/struct_timeval.h
+isx.o: /usr/include/bits/types/struct_timespec.h
+isx.o: /usr/include/bits/pthreadtypes.h
+isx.o: /usr/include/bits/thread-shared-types.h
+isx.o: /usr/include/bits/pthreadtypes-arch.h /usr/include/bits/struct_mutex.h
+isx.o: /usr/include/bits/struct_rwlock.h /usr/include/alloca.h
+isx.o: /usr/include/bits/stdlib-float.h /usr/include/stdio.h
+isx.o: /usr/lib64/gcc/x86_64-suse-linux/12/include/stdarg.h
+isx.o: /usr/include/bits/types/__fpos_t.h
+isx.o: /usr/include/bits/types/__mbstate_t.h
+isx.o: /usr/include/bits/types/__fpos64_t.h /usr/include/bits/types/__FILE.h
+isx.o: /usr/include/bits/types/FILE.h /usr/include/bits/types/struct_FILE.h
+isx.o: /usr/include/bits/types/cookie_io_functions_t.h
+isx.o: /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h
+isx.o: /usr/include/sys/time.h /usr/include/math.h
+isx.o: /usr/include/bits/math-vector.h
+isx.o: /usr/include/bits/libm-simd-decl-stubs.h
+isx.o: /usr/include/bits/flt-eval-method.h /usr/include/bits/fp-logb.h
+isx.o: /usr/include/bits/fp-fast.h
+isx.o: /usr/include/bits/mathcalls-helper-functions.h
+isx.o: /usr/include/bits/mathcalls.h /usr/include/bits/mathcalls-narrow.h
+isx.o: /usr/include/bits/iscanonical.h /usr/include/string.h
+isx.o: /usr/include/strings.h /usr/include/unistd.h
+isx.o: /usr/include/bits/posix_opt.h /usr/include/bits/environments.h
+isx.o: /usr/include/bits/confname.h /usr/include/bits/getopt_posix.h
+isx.o: /usr/include/bits/getopt_core.h /usr/include/bits/unistd_ext.h
+isx.o: /usr/include/sys/stat.h /usr/include/bits/stat.h
+isx.o: /usr/include/bits/statx.h /usr/include/bits/statx-generic.h
+isx.o: /usr/include/bits/types/struct_statx_timestamp.h
+isx.o: /usr/include/bits/types/struct_statx.h params.h isx.h
+isx.o: /usr/include/inttypes.h timer.h /usr/include/time.h
+isx.o: /usr/include/bits/time.h /usr/include/bits/timex.h
+isx.o: /usr/include/bits/types/struct_tm.h
+isx.o: /usr/include/bits/types/struct_itimerspec.h
+isx.o: /usr/lib64/gcc/x86_64-suse-linux/12/include/stdbool.h pcg_basic.h

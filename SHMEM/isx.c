@@ -53,6 +53,8 @@ long long int llWrk[_SHMEM_REDUCE_MIN_WRKDATA_SIZE];
 long pSync[_SHMEM_REDUCE_SYNC_SIZE];
 
 uint64_t NUM_PES; // Number of parallel workers
+int SHMEM_CHILD; // Created as a grow process
+int ELASTIC_JOBS; // Total number of elastic jobs for all PEs
 uint64_t TOTAL_KEYS; // Total number of keys across all PEs
 uint64_t NUM_KEYS_PER_PE; // Number of keys generated on each PE
 uint64_t NUM_BUCKETS; // The number of buckets in the bucket sort
@@ -78,6 +80,10 @@ int * permute_array;
 int main(const int argc,  char ** argv)
 {
   shmem_init();
+  char * log_file = parse_params(argc, argv);
+  printf(" ------------- SHMEM_CHILD: %ld\n", SHMEM_CHILD);
+  fflush(stdout);
+  shmem_grow(ELASTIC_JOBS, SHMEM_CHILD);
 #ifdef OPENSHMEM_COMPLIANT
   my_bucket_keys = (KEY_TYPE*) shmem_malloc(KEY_BUFFER_SIZE * sizeof(KEY_TYPE));
 #else
@@ -87,7 +93,7 @@ int main(const int argc,  char ** argv)
 
   init_shmem_sync_array(pSync);
 
-  char * log_file = parse_params(argc, argv);
+  log_file = parse_params(argc, argv);
 
   int err = bucket_sort();
 
@@ -102,7 +108,6 @@ int main(const int argc,  char ** argv)
 // to set all necessary runtime values and options
 static char * parse_params(const int argc, char ** argv)
 {
-
   NUM_PES = (uint64_t) shmem_n_pes();
   MAX_KEY_VAL = DEFAULT_MAX_KEY;
   NUM_BUCKETS = NUM_PES;
@@ -110,19 +115,22 @@ static char * parse_params(const int argc, char ** argv)
   char scaling_msg[64];
   char * log_file;
 
-  if(argc == 3) {
+  if(argc == 5) {
     NUM_ITERATIONS = 1u;
-    log_file = argv[2];
+    SHMEM_CHILD = (int) strtol(argv[2], NULL, 10);
+    ELASTIC_JOBS = (int) strtol(argv[3], NULL, 10);
+    log_file = argv[4];
   }
-  else if(argc == 4) {
+  else if(argc == 6) {
     NUM_ITERATIONS = (uint64_t) strtoull(argv[2], NULL, 10);
-    log_file = argv[3];
+    SHMEM_CHILD = (int) strtol(argv[3], NULL, 10);
+    ELASTIC_JOBS = (int) strtol(argv[4], NULL, 10);
+    log_file = argv[5];
   }
   else {
     if( shmem_my_pe() == 0){
       printf("Usage:  \n");
-      printf("  ./%s <total num keys(strong) | keys per pe(weak)> [iterations] "
-             "<log_file>\n",argv[0]);
+      printf("  ./%s <total num keys(strong) | keys per pe(weak)> [iterations] <shmem_child> <elastic_jobs> <log_file>\n", argv[0]);
     }
 
     shmem_finalize();
@@ -184,7 +192,9 @@ static char * parse_params(const int argc, char ** argv)
     printf("  Number of Iterations: %" PRIu64 "\n", NUM_ITERATIONS);
     printf("  Number of PEs: %" PRIu64 "\n", NUM_PES);
     printf("  %s Scaling!\n",scaling_msg);
-    }
+    printf("  SHMEM_CHILD: %d\n", SHMEM_CHILD);
+    printf("  ELASTIC_JOBS: %d\n", ELASTIC_JOBS);
+  }
 
   return log_file;
 }

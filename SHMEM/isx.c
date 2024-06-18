@@ -53,8 +53,8 @@ long long int llWrk[_SHMEM_REDUCE_MIN_WRKDATA_SIZE];
 long pSync[_SHMEM_REDUCE_SYNC_SIZE];
 
 uint64_t NUM_PES; // Number of parallel workers
-int SHMEM_CHILD; // Created as a grow process
 int ELASTIC_JOBS; // Total number of elastic jobs for all PEs
+int fast_forward = 0;
 uint64_t TOTAL_KEYS; // Total number of keys across all PEs
 uint64_t NUM_KEYS_PER_PE; // Number of keys generated on each PE
 uint64_t NUM_BUCKETS; // The number of buckets in the bucket sort
@@ -76,14 +76,31 @@ KEY_TYPE *my_bucket_keys;
 #ifdef PERMUTE
 int * permute_array;
 #endif
+int *COUNTER;
+
+void grow_callback(int new_size) {
+    int pe = shmem_my_pe();
+    printf("cb pre get\n");
+    shmem_int_get(COUNTER, COUNTER, 1, 0); // Get int value from PE 0
+    printf("cb post get\n");
+    NUM_PES = (uint64_t) shmem_n_pes();
+    MAX_KEY_VAL = DEFAULT_MAX_KEY;
+    NUM_BUCKETS = NUM_PES;
+    BUCKET_WIDTH = (uint64_t) ceil((double)MAX_KEY_VAL/NUM_BUCKETS);
+
+    printf("Grow callback on PE %d, new size %d, COUNTER value from PE 0: %d\n", pe, new_size, *COUNTER);
+    fflush(stdout);
+    return;
+}
 
 int main(const int argc,  char ** argv)
 {
+  // for (int i = 0; i < argc; ++i) {
+  //   printf("argv[%d]: %s\n", i, argv[i]);
+  // }
   shmem_init();
   char * log_file = parse_params(argc, argv);
-  printf(" ------------- SHMEM_CHILD: %ld\n", SHMEM_CHILD);
   fflush(stdout);
-  shmem_grow(ELASTIC_JOBS, SHMEM_CHILD);
 #ifdef OPENSHMEM_COMPLIANT
   my_bucket_keys = (KEY_TYPE*) shmem_malloc(KEY_BUFFER_SIZE * sizeof(KEY_TYPE));
 #else
@@ -115,22 +132,32 @@ static char * parse_params(const int argc, char ** argv)
   char scaling_msg[64];
   char * log_file;
 
-  if(argc == 5) {
+  char *fast_forward_env = getenv("SHMEM_FAST_FORWARD");
+
+  if (fast_forward_env != NULL) {
+      fast_forward = atoi(fast_forward_env);
+  }
+  // for (int i = 0; i < argc; ++i) {
+  //     printf("argv[%d]: %s\n", i, argv[i]);
+  // }
+
+  if(argc == 4) {
     NUM_ITERATIONS = 1u;
-    SHMEM_CHILD = (int) strtol(argv[2], NULL, 10);
-    ELASTIC_JOBS = (int) strtol(argv[3], NULL, 10);
-    log_file = argv[4];
+    ELASTIC_JOBS = (int) strtol(argv[3], NULL, 10);  // Corrected index here
+    log_file = argv[4];  // Corrected index here
   }
-  else if(argc == 6) {
+  else if(argc == 5) {
     NUM_ITERATIONS = (uint64_t) strtoull(argv[2], NULL, 10);
-    SHMEM_CHILD = (int) strtol(argv[3], NULL, 10);
-    ELASTIC_JOBS = (int) strtol(argv[4], NULL, 10);
-    log_file = argv[5];
+    // printf("NUM ITERATIONS SHOULD BE 10: %" PRIu64 "\n", NUM_ITERATIONS);
+    // fflush(stdout);
+    ELASTIC_JOBS = (int) strtol(argv[3], NULL, 10);
+    log_file = argv[4];  // Corrected index here
   }
+
   else {
     if( shmem_my_pe() == 0){
       printf("Usage:  \n");
-      printf("  ./%s <total num keys(strong) | keys per pe(weak)> [iterations] <shmem_child> <elastic_jobs> <log_file>\n", argv[0]);
+      printf("  ./%s <total num keys(strong) | keys per pe(weak)> [iterations] <elastic_jobs> <log_file>\n", argv[0]);
     }
 
     shmem_finalize();
@@ -192,7 +219,6 @@ static char * parse_params(const int argc, char ** argv)
     printf("  Number of Iterations: %" PRIu64 "\n", NUM_ITERATIONS);
     printf("  Number of PEs: %" PRIu64 "\n", NUM_PES);
     printf("  %s Scaling!\n",scaling_msg);
-    printf("  SHMEM_CHILD: %d\n", SHMEM_CHILD);
     printf("  ELASTIC_JOBS: %d\n", ELASTIC_JOBS);
   }
 
@@ -208,8 +234,11 @@ static char * parse_params(const int argc, char ** argv)
  */
 static int bucket_sort(void)
 {
+  COUNTER = (int*) shmem_malloc(sizeof(int));
+  *COUNTER = 0;
   printf("Entering bucket sort\n");
   fflush(stdout);
+  
   int err = 0;
 
   //init_timers(NUM_ITERATIONS);
@@ -218,17 +247,35 @@ static int bucket_sort(void)
   create_permutation_array();
 #endif
 
-  for(uint64_t i = 0; i < (NUM_ITERATIONS + BURN_IN); ++i)
+  for (*COUNTER = 0; (uint64_t)*COUNTER < (NUM_ITERATIONS + BURN_IN); (*COUNTER)++) 
   {
-    printf("Entering inner loop\n");
+    printf("SYMMETRIC COUNTER: %d\n", *COUNTER);
     fflush(stdout);
     // Reset timers after burn in
-    if(i == BURN_IN){ 
-      //init_timers(NUM_ITERATIONS); 
+    // if(i == BURN_IN){ 
+    //   //init_timers(NUM_ITERATIONS); 
+    // }
+    if ((uint64_t)*COUNTER == 0 || fast_forward > 0) {
+      printf("Calling grow on PE %d, FF=%d\n", shmem_my_pe(), fast_forward);
+      fast_forward = 0;
+      fflush(stdout);
+      int ret = shmem_grow(ELASTIC_JOBS, grow_callback);
+      NUM_PES = (uint64_t) shmem_n_pes();
+      MAX_KEY_VAL = DEFAULT_MAX_KEY;
+      NUM_BUCKETS = NUM_PES;
+      BUCKET_WIDTH = (uint64_t) ceil((double)MAX_KEY_VAL/NUM_BUCKETS);
+      if(ret != 0) {
+        printf("grow failed PE[%d]\n", shmem_my_pe());
+        fflush(stdout);
+      }
+      printf("exited grow on PE %d, FF=%d\n", shmem_my_pe(), fast_forward);
+      fflush(stdout);
     }
-
+    printf("PRE barrier on PE %d\n", shmem_my_pe());
+    fflush(stdout);
     shmem_barrier_all();
-
+    printf("finished barrier on PE %d\n", shmem_my_pe());
+    fflush(stdout);
     //timer_start(&timers[TIMER_TOTAL]);
 
     KEY_TYPE * my_keys = make_input();
@@ -247,16 +294,23 @@ static int bucket_sort(void)
                                               my_local_bucketed_keys);
 
     my_bucket_size = receive_offset;
-
+    printf("Exiting exchange keys\n");
+    fflush(stdout);
     int * my_local_key_counts = count_local_keys(my_bucket_keys);
-
+    printf("Exiting count_local_keys\n");
+    fflush(stdout);
     shmem_barrier_all();
-
+    printf("Exiting compute barrier\n");
+    fflush(stdout);
     //timer_stop(&timers[TIMER_TOTAL]);
 
     // Only the last iteration is verified
-    if(i == NUM_ITERATIONS) {
+    if((uint64_t)*COUNTER == NUM_ITERATIONS) {
+      printf("Verifying results\n");
+      fflush(stdout);
       err = verify_results(my_local_key_counts, my_bucket_keys);
+      printf("Verified results\n");
+      fflush(stdout);
     }
 
     // Reset receive_offset used in exchange_keys
@@ -268,10 +322,9 @@ static int bucket_sort(void)
     free(local_bucket_offsets);
     free(send_offsets);
     free(my_local_key_counts);
-
     shmem_barrier_all();
   }
-
+shmem_free(COUNTER);
 #ifdef OPENSHMEM_COMPLIANT
   shmem_free(my_bucket_keys);
 #else
@@ -567,9 +620,11 @@ static inline int * count_local_keys(KEY_TYPE const * restrict const my_bucket_k
 static int verify_results(int const * restrict const my_local_key_counts,
                            KEY_TYPE const * restrict const my_local_keys)
 {
-
+  printf("verify results start\n");
+  fflush(stdout);
   shmem_barrier_all();
-
+  printf("verify results past barrier\n");
+  fflush(stdout);
   int error = 0;
 
   const int my_rank = shmem_my_pe();
@@ -579,6 +634,8 @@ static int verify_results(int const * restrict const my_local_key_counts,
 
   // Verify all keys are within bucket boundaries
   for(long long int i = 0; i < my_bucket_size; ++i){
+    printf("bucket boundary\n");
+    fflush(stdout);
     const int key = my_local_keys[i];
     if((key < my_min_key) || (key > my_max_key)){
       printf("Rank %d Failed Verification!\n",my_rank);

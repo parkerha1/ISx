@@ -29,10 +29,12 @@ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 */
+#define _POSIX_C_SOURCE 199309L
 #include <shmem.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #include <sys/time.h>
 #include <math.h>
 #include <string.h>
@@ -225,6 +227,27 @@ static char * parse_params(const int argc, char ** argv)
   return log_file;
 }
 
+typedef struct {
+    struct timespec start;
+    struct timespec end;
+    long elapsed_ms; 
+} Timer;
+
+void timer_start(Timer *timer) {
+    clock_gettime(CLOCK_MONOTONIC, &timer->start);
+}
+
+void timer_stop(Timer *timer) {
+    clock_gettime(CLOCK_MONOTONIC, &timer->end);
+    timer->elapsed_ms = (timer->end.tv_sec - timer->start.tv_sec) * 1000L + 
+                        (timer->end.tv_nsec - timer->start.tv_nsec) / 1000000L;
+}
+
+void print_timer_results(Timer *timers, int num_timers, int pe) {
+    for (int i = 0; i < num_timers; i++) {
+        printf("PE: %d, Loop %d: %ld milliseconds\n", pe, i, timers[i].elapsed_ms);
+    }
+}
 
 /*
  * The primary compute function for the bucket sort
@@ -238,6 +261,8 @@ static int bucket_sort(void)
   *COUNTER = 0;
   printf("Entering bucket sort\n");
   fflush(stdout);
+  Timer grow_timer;
+  Timer loop_timers[NUM_ITERATIONS + BURN_IN];
   
   int err = 0;
 
@@ -255,11 +280,13 @@ static int bucket_sort(void)
     // if(i == BURN_IN){ 
     //   //init_timers(NUM_ITERATIONS); 
     // }
-    if ((uint64_t)*COUNTER == 0 || fast_forward > 0) {
+    if ((uint64_t)*COUNTER == 5 || fast_forward > 0) {
       printf("Calling grow on PE %d, FF=%d\n", shmem_my_pe(), fast_forward);
       fast_forward = 0;
       fflush(stdout);
+      timer_start(&grow_timer);
       int ret = shmem_grow(ELASTIC_JOBS, grow_callback);
+      timer_stop(&grow_timer);
       NUM_PES = (uint64_t) shmem_n_pes();
       MAX_KEY_VAL = DEFAULT_MAX_KEY;
       NUM_BUCKETS = NUM_PES;
@@ -276,7 +303,7 @@ static int bucket_sort(void)
     shmem_barrier_all();
     printf("finished barrier on PE %d\n", shmem_my_pe());
     fflush(stdout);
-    //timer_start(&timers[TIMER_TOTAL]);
+    timer_start(&loop_timers[*COUNTER]);
 
     KEY_TYPE * my_keys = make_input();
 
@@ -302,7 +329,7 @@ static int bucket_sort(void)
     shmem_barrier_all();
     printf("Exiting compute barrier\n");
     fflush(stdout);
-    //timer_stop(&timers[TIMER_TOTAL]);
+    timer_stop(&loop_timers[*COUNTER]);
 
     // Only the last iteration is verified
     if((uint64_t)*COUNTER == NUM_ITERATIONS) {
@@ -310,6 +337,8 @@ static int bucket_sort(void)
       fflush(stdout);
       err = verify_results(my_local_key_counts, my_bucket_keys);
       printf("Verified results\n");
+      print_timer_results(loop_timers, sizeof(loop_timers)/sizeof(loop_timers[0]), shmem_my_pe());
+      printf("Grow time: PE: %d: %ld milliseconds\n", shmem_my_pe(), grow_timer.elapsed_ms);
       fflush(stdout);
     }
 
@@ -634,7 +663,7 @@ static int verify_results(int const * restrict const my_local_key_counts,
 
   // Verify all keys are within bucket boundaries
   for(long long int i = 0; i < my_bucket_size; ++i){
-    printf("bucket boundary\n");
+    // printf("bucket boundary\n");
     fflush(stdout);
     const int key = my_local_keys[i];
     if((key < my_min_key) || (key > my_max_key)){
